@@ -1,0 +1,36 @@
+[package]
+name = "kinetrace"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "kinetrace"
+path = "src/bin/kinetrace.rs"
+
+[dependencies]
+agent = { path = "../agent" }
+protocol = { path = "../protocol" }
+bpf = { path = "../bpf" }
+perfetto-format = { path = "../perfetto-format" }
+clap.workspace = true
+eyre.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rkyv.workspace = true
+toml = "0.8"
+ctrlc = "3.4"
+humantime.workspace = true
+
+[build-dependencies]
+grev = "0.1"
+
+[dev-dependencies]
+rstest.workspace = true
+tempfile.workspace = true
+prost.workspace = true
+nix = { version = "0.30", features = ["signal", "process"] }
+serial_test = "3.0"

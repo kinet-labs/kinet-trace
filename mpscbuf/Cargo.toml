@@ -1,0 +1,39 @@
+[package]
+name = "mpscbuf"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[features]
+default = []
+loom = ["dep:loom"]
+trace = []
+
+[dependencies]
+crossbeam.workspace = true
+eyre.workspace = true
+libc.workspace = true
+nix.workspace = true
+thiserror.workspace = true
+loom = { version = "0.7.2", optional = true }
+tracing = { workspace = true }
+
+[[bench]]
+name = "ringbuf"
+harness = false
+
+[[example]]
+name = "producer"
+
+[[example]]
+name = "consumer"
+
+[dev-dependencies]
+clap.workspace = true
+divan.workspace = true
+governor.workspace = true
+hdrhistogram.workspace = true
+rstest.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

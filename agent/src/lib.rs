@@ -1,0 +1,100 @@
+// Copyright (C) 2025 Kinet Labs, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the Apache-2.0 license as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Apache-2.0 license for more details.
+//
+// You should have received a copy of the Apache-2.0 license
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+//! High-performance event collection agent using shared memory IPC.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use agent::{Agent, AgentClient, Consumer};
+//!
+//! // Server side - receives events
+//! let agent = Agent::new("/tmp/agent.sock".to_string())?;
+//!
+//! // Client side - sends events  
+//! let mut consumer = Consumer::new(1024 * 1024)?;
+//! let mut client = AgentClient::new("/tmp/agent.sock".to_string());
+//! client.start(&consumer, "debug".to_owned())?;
+//!
+//!
+//! // Send periodic keepalive to prevent timeout
+//! client.send_continue()?;
+//!
+//! // Read events on consumer side
+//! while let Some(record) = consumer.consume() {
+//!     if let Ok(event) = record.as_event() {
+//!         // Process event
+//!     }
+//! }
+//!
+//! // Cleanup
+//! client.stop()?;
+//! # Ok::<(), agent::AgentError>(())
+//! ```
+
+use mpscbuf::MpscBufError;
+use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::OnceLock;
+use thiserror::Error;
+
+pub use agent::{Agent, AgentBuilder};
+pub use client::AgentClient;
+pub use extension::{AgentHandle, Extension, ExtensionError};
+pub use mpsc::{Consumer, Producer};
+
+pub const RANDOM_PROCESS_ID_OPTION: &str = "random_process_id";
+
+static PROCESS_ID: OnceLock<AtomicI32> = OnceLock::new();
+
+fn get_process_id_atomic() -> &'static AtomicI32 {
+    PROCESS_ID.get_or_init(|| AtomicI32::new(std::process::id() as i32))
+}
+
+pub fn get_process_id() -> i32 {
+    get_process_id_atomic().load(Ordering::Relaxed)
+}
+
+pub(crate) fn set_process_id(id: i32) {
+    get_process_id_atomic().store(id, Ordering::Relaxed);
+}
+
+pub(crate) fn reset_process_id() {
+    get_process_id_atomic().store(std::process::id() as i32, Ordering::Relaxed);
+}
+
+#[derive(Error, Debug)]
+pub enum AgentError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("System error: {0}")]
+    Nix(#[from] nix::Error),
+    #[error("MPSC buffer error: {0}")]
+    Mpscbuf(#[from] MpscBufError),
+    #[error("Archive error: {0}")]
+    Archive(#[from] rkyv::rancor::Error),
+    #[error("Agent not enabled")]
+    NotEnabled,
+    #[error("{0}")]
+    Other(String),
+}
+
+pub type Result<T> = std::result::Result<T, AgentError>;
+
+pub(crate) mod agent;
+pub(crate) mod agent_state;
+pub(crate) mod client;
+pub(crate) mod epoll_thread;
+pub(crate) mod extension;
+pub(crate) mod mpsc;

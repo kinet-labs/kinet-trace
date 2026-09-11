@@ -1,0 +1,16 @@
+[package]
+name = "perfetto-format"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+prost.workspace = true
+bytes = "1.6"
+protocol = { path = "../protocol" }
+
+[build-dependencies]
+prost-build.workspace = true
+
+[dev-dependencies]
+anyhow = "1.0"
+thread-id = "5.0"

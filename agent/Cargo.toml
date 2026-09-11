@@ -1,0 +1,24 @@
+[package]
+name = "agent"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+mpscbuf = { path = "../mpscbuf" }
+protocol = { path = "../protocol" }
+arc-swap.workspace = true
+nix = { workspace = true, features = ["socket", "uio", "event"] }
+rand = "0.8"
+rkyv.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+libc.workspace = true
+thread_local = "1.1"
+
+[dev-dependencies]
+rstest.workspace = true
+tempfile.workspace = true
+tracing-subscriber.workspace = true

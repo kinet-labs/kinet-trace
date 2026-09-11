@@ -1,0 +1,148 @@
+// Copyright (C) 2025 Kinet Labs, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the Apache-2.0 license as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// Apache-2.0 license for more details.
+//
+// You should have received a copy of the Apache-2.0 license
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+use crate::{common::Metadata, memory::Memory, sync::Ordering, MpscBufError};
+use std::os::fd::AsFd;
+
+pub(crate) struct RingBuf {
+    memory: Memory,
+}
+
+impl RingBuf {
+    pub(crate) fn new(data_size: usize) -> Result<Self, MpscBufError> {
+        let memory = Memory::new(data_size)?;
+
+        let metadata_ptr = memory.metadata_ptr().as_ptr() as *mut Metadata;
+        unsafe {
+            metadata_ptr.write(Metadata::new());
+        }
+        Ok(RingBuf { memory })
+    }
+
+    pub fn from_fd(fd: std::os::fd::OwnedFd, data_size: usize) -> Result<Self, MpscBufError> {
+        let memory = Memory::from_fd(fd, data_size)?;
+        Ok(RingBuf { memory })
+    }
+
+    #[inline(always)]
+    pub(crate) fn metadata(&self) -> &Metadata {
+        unsafe { &*(self.memory.metadata_ptr().as_ptr() as *const Metadata) }
+    }
+
+    pub(crate) fn data_size(&self) -> usize {
+        self.memory.data_size()
+    }
+
+    #[inline(always)]
+    pub(crate) fn size_mask(&self) -> u64 {
+        (self.memory.data_size() - 1) as u64
+    }
+
+    #[inline(always)]
+    pub(crate) fn data_ptr(&self) -> *mut u8 {
+        self.memory.data_ptr().as_ptr()
+    }
+
+    #[inline(always)]
+    pub(crate) fn consumer_pos(&self) -> u64 {
+        self.metadata().consumer.load(Ordering::Acquire)
+    }
+
+    #[inline(always)]
+    pub(crate) fn producer_pos(&self) -> u64 {
+        self.metadata().producer.load(Ordering::Acquire)
+    }
+
+    #[inline(always)]
+    pub(crate) fn advance_producer(&self, amount: u64) {
+        self.metadata().producer.store(amount, Ordering::Release);
+    }
+
+    #[inline(always)]
+    pub(crate) fn advance_consumer(&self, amount: u64) {
+        self.metadata().consumer.store(amount, Ordering::Release);
+    }
+
+    pub fn increment_dropped(&self) {
+        self.metadata().dropped.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn dropped(&self) -> u64 {
+        self.metadata().dropped.load(Ordering::Relaxed)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn clone_fd(&self) -> Result<std::os::fd::OwnedFd, MpscBufError> {
+        self.memory.clone_fd()
+    }
+
+    pub fn memory_fd(&self) -> std::os::fd::BorrowedFd {
+        self.memory.fd().as_fd()
+    }
+}
+
+unsafe impl Send for RingBuf {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+
+    #[fixture]
+    fn ringbuf() -> RingBuf {
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        let size = page_size * 2;
+        RingBuf::new(size).unwrap()
+    }
+
+    #[rstest]
+    fn test_ringbuf_creation(ringbuf: RingBuf) -> Result<(), MpscBufError> {
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        let size = page_size * 2;
+
+        assert_eq!(ringbuf.data_size(), size);
+        assert_eq!(ringbuf.consumer_pos(), 0);
+        assert_eq!(ringbuf.producer_pos(), 0);
+        assert_eq!(ringbuf.dropped(), 0);
+        assert_eq!(ringbuf.size_mask(), (size - 1) as u64);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn test_position_updates(ringbuf: RingBuf) {
+        assert_eq!(ringbuf.producer_pos(), 0);
+        assert_eq!(ringbuf.consumer_pos(), 0);
+
+        ringbuf.advance_producer(100);
+        assert_eq!(ringbuf.producer_pos(), 100);
+        assert_eq!(ringbuf.consumer_pos(), 0);
+
+        ringbuf.advance_consumer(50);
+        assert_eq!(ringbuf.producer_pos(), 100);
+        assert_eq!(ringbuf.consumer_pos(), 50);
+    }
+
+    #[rstest]
+    fn test_dropped_counter(ringbuf: RingBuf) {
+        assert_eq!(ringbuf.dropped(), 0);
+
+        ringbuf.increment_dropped();
+        assert_eq!(ringbuf.dropped(), 1);
+
+        ringbuf.increment_dropped();
+        assert_eq!(ringbuf.dropped(), 2);
+    }
+}

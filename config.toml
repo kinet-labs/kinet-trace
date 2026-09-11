@@ -1,0 +1,16 @@
+[bpf.thread_tracker]
+
+[bpf.profiler]
+frequency = 99
+kernel_samples = false
+user_samples = true
+filter_process = ["kinet-node"]
+
+[bpf.schedtrace]
+filter_process = ["kinet-node"]
+
+
+[[user]]
+socket = "/home/dshulyak/kinet-integration/logs/1node-full-20250708_022608-2e95602706a9e1ed/node0/kinetrace/node.sock"
+log_filter = "debug,kinet_node=trace,kinet_dataplane=trace"
+random_process_id = true

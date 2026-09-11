@@ -1,0 +1,263 @@
+# Kinetrace Configuration Reference
+# This file contains all available configuration options with their defaults
+
+# ===========================
+# Global Configuration
+# ===========================
+
+# Size of the buffer for trace data collection (in bytes)
+# Default: 8388608 (8 MB = 8 << 20)
+buffer_size = 8388608
+
+# ===========================
+# BPF Configuration
+# ===========================
+# Note: Global configuration options (buffer_size) can also be specified
+# at the root level without a [global] section header
+
+# Global process name filter that applies to all BPF modules
+# If specified, only processes matching these names will be traced
+# Note: Thread tracker must be enabled when using process name filtering
+# Default: [] (empty - no filtering)
+[bpf]
+filter_process = []
+
+# ---------------------------
+# Thread Tracker Module
+# ---------------------------
+# Tracks process and thread creation/destruction events
+# Required when using process name filtering in other modules
+
+[bpf.thread_tracker]
+# Size of the ring buffer for thread tracker events (in entries)
+# Default: 65536 (64K entries)
+ringbuf = 65536
+
+# ---------------------------
+# CPU Utilization Module
+# ---------------------------
+# Monitors CPU usage per thread/process
+
+[bpf.cpu_util]
+# Sampling frequency in Hz (how often to sample CPU usage)
+# Default: 9
+frequency = 9
+
+# Filter by specific process IDs (signed 32-bit integers)
+# Default: [] (empty - no PID filtering)
+pid_filters = []
+
+# Filter by process names (requires thread_tracker)
+# If both global and module-specific filters are set, the module-specific filter takes precedence
+# Default: [] (empty - no name filtering)
+filter_process = []
+
+# Size of the ring buffer for CPU utilization events (in entries)
+# Default: 65536 (64K entries)
+ringbuf = 65536
+
+# ---------------------------
+# Profiler Module
+# ---------------------------
+# Collects stack traces for performance analysis
+
+[bpf.profiler]
+# Sampling frequency in Hz
+# Default: 99
+frequency = 99
+
+# Include kernel stack traces
+# Default: false
+kernel_samples = false
+
+# Include user-space stack traces
+# Default: true
+user_samples = true
+
+# Filter by specific process IDs (signed 32-bit integers)
+# Default: [] (empty - no PID filtering)
+pid_filters = []
+
+# Filter by process names (requires thread_tracker)
+# If both global and module-specific filters are set, the module-specific filter takes precedence
+# Default: [] (empty - no name filtering)
+filter_process = []
+
+# Enable debug symbol resolution
+# Default: true
+debug_syms = true
+
+# Enable perf map support (for JIT-compiled code)
+# Default: false
+perf_map = false
+
+# Enable memory-mapped files for symbol resolution
+# Default: true
+map_files = true
+
+# Size of the ring buffer for profiler events (in entries)
+# Default: 65536 (64K entries)
+ringbuf = 65536
+
+# ---------------------------
+# Scheduler Trace Module
+# ---------------------------
+# Tracks scheduler events and thread state transitions
+
+[bpf.schedtrace]
+# Filter by specific process IDs (signed 32-bit integers)
+# Default: [] (empty - no PID filtering)
+pid_filters = []
+
+# Filter by process names (requires thread_tracker)
+# If both global and module-specific filters are set, the module-specific filter takes precedence
+# Default: [] (empty - no name filtering)
+filter_process = []
+
+# Size of the ring buffer for scheduler trace events (in entries)
+# Default: 262144 (256K entries)
+ringbuf = 262144
+
+# ---------------------------
+# Network Tracking Module
+# ---------------------------
+# Tracks network I/O rates for TCP and UDP traffic
+
+[bpf.nettrack]
+# Host and process map sampling frequency in Hz
+# Default: 9
+frequency = 9
+
+# Peer maps are normally read less often to limit userspace and trace overhead
+# Default: 1
+peer_frequency = 1
+
+# Enable scaled mode to convert byte counts to bits/s rates
+# When true: reports network rates in bits per second (bits/s)
+# When false: reports cumulative byte counts
+# Default: false
+scaled = false
+
+# Protocols, directions, aggregation scopes, and metrics to collect.
+# Low-overhead defaults are ["tcp", "udp"], ["send", "receive"],
+# ["host"], and ["bytes"]. Process and peer aggregation are opt-in.
+protocols = ["tcp", "udp"]
+directions = ["send", "receive"]
+scopes = ["host"]
+metrics = ["bytes"]
+
+# Optional PID and process-name filters. Process names require thread_tracker.
+pid_filters = []
+filter_process = []
+
+# Bounded map and Perfetto cardinality controls
+max_process_entries = 1024
+max_peer_entries = 4096
+max_peer_tracks = 512
+
+# ---------------------------
+# Block I/O Tracking Module
+# ---------------------------
+# Tracks physical block-request rates, latency, depth, and optional spans.
+
+[bpf.block_io]
+# Cumulative maps are read at this frequency. No periodic BPF interrupt is used.
+# Default: 9
+frequency = 9
+
+# Request operations retained by the BPF programs.
+# Values: "read", "write", "flush", "discard", "other"
+# Default: ["read", "write"]
+operations = ["read", "write"]
+
+# Counter families to emit.
+# Values: "throughput", "iops", "latency", "saturation", "errors"
+# Default: all values
+metrics = ["throughput", "iops", "latency", "saturation", "errors"]
+
+# Optional physical-device filters. Accepts a kernel device name, /dev path,
+# or major:minor. Partition filters resolve to their physical parent queue.
+# Default: [] (all devices)
+devices = []
+
+# Bounded BPF map capacities.
+# Defaults: 64 devices and 32768 live requests
+max_devices = 64
+max_requests = 32768
+
+# Emit an individual issue-to-completion span for sampled block requests.
+# This is disabled by default; aggregate counters never require ring-buffer events.
+timeline = false
+
+# With timeline enabled, emit approximately one out of every N request attempts.
+# Default: 1
+timeline_sample_every = 1
+
+# With timeline enabled, omit spans below this total request latency.
+# Default: 0
+timeline_min_latency_us = 0
+
+# Timeline ring-buffer capacity in bytes. Must be a power of two, at least 4096,
+# and fit in an unsigned 32-bit map size.
+# It is reduced to 4096 internally when timeline is disabled.
+# Default: 8388608 (8 MiB)
+ringbuf = 8388608
+
+# ---------------------------
+# Performance Counter Module
+# ---------------------------
+# Collects hardware and software performance counter metrics
+
+[bpf.perfcounter]
+# Sampling frequency in Hz
+# Default: 9
+frequency = 9
+
+# Performance counters to collect
+# Values: "cpu-cycles", "cpu-instructions", "instructions", "cache-references",
+#         "cache-misses", "branch-instructions", "branches", "branch-misses",
+#         "stalled-cycles-frontend", "stalled-cycles-backend", "cpu-clock",
+#         "task-clock", "page-faults", "faults", "context-switches", "cs",
+#         "cpu-migrations", "migrations", "minor-faults", "major-faults", "ipc",
+#         { name = "custom", type = 0, config = 0x1234 }
+# Default: ["cpu-cycles", "cpu-instructions"]
+counters = ["cpu-cycles", "cpu-instructions"]
+
+# Ring buffer size in bytes
+# Default: 262144 (256KB)
+ringbuf = 262144
+
+# ===========================
+# User Configuration
+# ===========================
+# Configure trace data consumers
+# Multiple users can be defined to send data to different sockets
+
+[[user]]
+# Path to the Unix domain socket for this consumer
+# Required - no default
+socket = "/path/to/consumer.sock"
+
+# Log filter for this consumer using Rust's env_logger syntax
+# Default: "DEBUG"
+# Examples:
+#   "DEBUG" - global debug level
+#   "warn,my_module=debug" - warn globally, debug for my_module
+#   "info,module1=debug,module2=trace" - mixed levels per module
+#   "info,module_name=off" - info globally, disable module_name
+log_filter = "DEBUG"
+
+# Enable random process ID generation for anonymization
+# Default: false (disabled)
+# When enabled, actual PIDs are replaced with random values
+random_process_id = false
+
+# Example of multiple users with different configurations
+[[user]]
+socket = "/var/run/kinetrace/production.sock"
+log_filter = "INFO"
+random_process_id = true
+
+[[user]]
+socket = "/var/run/kinetrace/debug.sock"
+log_filter = "TRACE"
